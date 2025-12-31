@@ -9,6 +9,11 @@ describe("index (exports)", () => {
       expect(typeof index.getMostReplayed).toBe("function");
     });
 
+    it("should export getMostReplayedBatch function", () => {
+      expect(index.getMostReplayedBatch).toBeDefined();
+      expect(typeof index.getMostReplayedBatch).toBe("function");
+    });
+
     it("should export extractVideoId function", () => {
       expect(index.extractVideoId).toBeDefined();
       expect(typeof index.extractVideoId).toBe("function");
@@ -77,6 +82,7 @@ describe("index (exports)", () => {
       const expectedExports = [
         // Main API
         "getMostReplayed",
+        "getMostReplayedBatch",
         "extractVideoId",
         "isValidVideoId",
         // Errors

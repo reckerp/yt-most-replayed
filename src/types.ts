@@ -1,11 +1,6 @@
-/**
- * Represents a single heatmap marker point in the most replayed data.
- * Each marker indicates the relative intensity of replays at a specific time.
- */
 export interface HeatmapMarker {
-  /** Start time of this marker segment in milliseconds */
   startMillis: number;
-  /** Intensity score (0-1) indicating how frequently this segment is replayed */
+  durationMillis: number;
   intensityScoreNormalized: number;
 }
 
@@ -35,16 +30,32 @@ export interface MostReplayedData {
   averageIntensity: number;
 }
 
-/**
- * Options for fetching most replayed data.
- */
 export interface FetchOptions {
-  /** Custom fetch function (useful for testing or custom HTTP clients) */
   fetch?: typeof globalThis.fetch;
-  /** Request timeout in milliseconds (default: 10000) */
   timeout?: number;
-  /** Custom user agent string */
   userAgent?: string;
+  retries?: number;
+  retryDelay?: number;
+}
+
+/**
+ * Options for batch fetching multiple videos.
+ */
+export interface BatchFetchOptions extends FetchOptions {
+  /** Maximum number of concurrent requests (default: 5) */
+  concurrency?: number;
+}
+
+/**
+ * Result of a batch fetch operation for a single video.
+ */
+export interface BatchResult {
+  /** The video ID */
+  videoId: string;
+  /** The most replayed data, or null if not available */
+  data: MostReplayedData | null;
+  /** Error if the fetch failed */
+  error?: MostReplayedError;
 }
 
 /**

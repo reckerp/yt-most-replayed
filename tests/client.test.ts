@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
-import { extractVideoId, getMostReplayed, isValidVideoId } from "../src/client.js";
+import { extractVideoId, getMostReplayed, getMostReplayedBatch, isValidVideoId } from "../src/client.js";
 import { MostReplayedError, MostReplayedErrorCode } from "../src/types.js";
 
 // Helper to create a mock fetch function that matches the expected type
@@ -321,6 +321,311 @@ describe("client", () => {
 
       expect(capturedHeaders).toBeDefined();
       expect((capturedHeaders as Record<string, string>)["User-Agent"]).toBe(customUserAgent);
+    });
+
+    it("should retry on transient failures and succeed", async () => {
+      let attempts = 0;
+      const mockHtml = `
+        <html>
+          <script>var ytInitialData = ${JSON.stringify({
+            frameworkUpdates: {
+              entityBatchUpdate: {
+                mutations: [],
+              },
+            },
+          })};</script>
+        </html>
+      `;
+
+      const mockFetch = createMockFetch(() => {
+        attempts++;
+        if (attempts < 3) {
+          return Promise.reject(new Error("Network error"));
+        }
+        return Promise.resolve(new Response(mockHtml, { status: 200, statusText: "OK" }));
+      });
+
+      const result = await getMostReplayed("dQw4w9WgXcQ", {
+        fetch: mockFetch,
+        retries: 3,
+        retryDelay: 10,
+      });
+
+      expect(result).toBeNull();
+      expect(attempts).toBe(3);
+    });
+
+    it("should fail after exhausting all retries", async () => {
+      let attempts = 0;
+
+      const mockFetch = createMockFetch(() => {
+        attempts++;
+        return Promise.reject(new Error("Network error"));
+      });
+
+      try {
+        await getMostReplayed("dQw4w9WgXcQ", {
+          fetch: mockFetch,
+          retries: 2,
+          retryDelay: 10,
+        });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(MostReplayedError);
+        expect((error as MostReplayedError).code).toBe(MostReplayedErrorCode.FETCH_FAILED);
+        expect(attempts).toBe(2);
+      }
+    });
+
+    it("should not retry on non-retryable errors like invalid video ID", async () => {
+      try {
+        await getMostReplayed("invalid", { retries: 3 });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(MostReplayedError);
+        expect((error as MostReplayedError).code).toBe(MostReplayedErrorCode.INVALID_VIDEO_ID);
+      }
+    });
+
+    it("should not retry on HTTP 4xx errors", async () => {
+      let attempts = 0;
+
+      const mockFetch = createMockFetch(() => {
+        attempts++;
+        return Promise.resolve(new Response("Not Found", { status: 404, statusText: "Not Found" }));
+      });
+
+      try {
+        await getMostReplayed("dQw4w9WgXcQ", {
+          fetch: mockFetch,
+          retries: 3,
+          retryDelay: 10,
+        });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(MostReplayedError);
+        expect(attempts).toBe(1);
+      }
+    });
+
+    it("should retry on HTTP 5xx errors", async () => {
+      let attempts = 0;
+      const mockHtml = `
+        <html>
+          <script>var ytInitialData = ${JSON.stringify({
+            frameworkUpdates: { entityBatchUpdate: { mutations: [] } },
+          })};</script>
+        </html>
+      `;
+
+      const mockFetch = createMockFetch(() => {
+        attempts++;
+        if (attempts < 2) {
+          return Promise.resolve(
+            new Response("Server Error", { status: 500, statusText: "Internal Server Error" })
+          );
+        }
+        return Promise.resolve(new Response(mockHtml, { status: 200, statusText: "OK" }));
+      });
+
+      const result = await getMostReplayed("dQw4w9WgXcQ", {
+        fetch: mockFetch,
+        retries: 3,
+        retryDelay: 10,
+      });
+
+      expect(result).toBeNull();
+      expect(attempts).toBe(2);
+    });
+  });
+
+  describe("getMostReplayedBatch", () => {
+    it("should fetch multiple videos in parallel", async () => {
+      const fetchedIds: string[] = [];
+      const mockHtml = (id: string) => `
+        <html>
+          <script>var ytInitialData = ${JSON.stringify({
+            frameworkUpdates: {
+              entityBatchUpdate: {
+                mutations: [
+                  {
+                    payload: {
+                      macroMarkersListEntity: {
+                        markersList: {
+                          markers: [
+                            { startMillis: "0", durationMillis: "5000", intensityScoreNormalized: 0.5 },
+                          ],
+                          markersDecoration: { timedMarkerDecorations: [] },
+                        },
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          })};</script>
+        </html>
+      `;
+
+      const mockFetch = createMockFetch((url: string) => {
+        const id = url.match(/v=([a-zA-Z0-9_-]{11})/)?.[1];
+        if (id) fetchedIds.push(id);
+        return Promise.resolve(new Response(mockHtml(id ?? ""), { status: 200, statusText: "OK" }));
+      });
+
+      const results = await getMostReplayedBatch(
+        ["dQw4w9WgXcQ", "abc123XYZ_-", "xyz789ABC_-"],
+        { fetch: mockFetch }
+      );
+
+      expect(results).toHaveLength(3);
+      expect(fetchedIds).toHaveLength(3);
+      expect(results.every(r => r.data !== null)).toBe(true);
+      expect(results.every(r => r.error === undefined)).toBe(true);
+    });
+
+    it("should handle validation errors for invalid video IDs", async () => {
+      const mockHtml = `
+        <html>
+          <script>var ytInitialData = ${JSON.stringify({
+            frameworkUpdates: {
+              entityBatchUpdate: {
+                mutations: [
+                  {
+                    payload: {
+                      macroMarkersListEntity: {
+                        markersList: {
+                          markers: [
+                            { startMillis: "0", durationMillis: "5000", intensityScoreNormalized: 0.5 },
+                          ],
+                          markersDecoration: { timedMarkerDecorations: [] },
+                        },
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          })};</script>
+        </html>
+      `;
+
+      const mockFetch = createMockFetch(() =>
+        Promise.resolve(new Response(mockHtml, { status: 200, statusText: "OK" }))
+      );
+
+      const results = await getMostReplayedBatch(
+        ["dQw4w9WgXcQ", "invalid", "abc123XYZ_-"],
+        { fetch: mockFetch }
+      );
+
+      expect(results).toHaveLength(3);
+      expect(results[0]?.error).toBeUndefined();
+      expect(results[1]?.error).toBeDefined();
+      expect(results[1]?.error?.code).toBe(MostReplayedErrorCode.INVALID_VIDEO_ID);
+      expect(results[2]?.error).toBeUndefined();
+    });
+
+    it("should handle fetch errors for individual videos", async () => {
+      const mockFetch = createMockFetch((url: string) => {
+        const id = url.match(/v=([a-zA-Z0-9_-]{11})/)?.[1];
+        if (id === "abc123XYZ_-") {
+          return Promise.resolve(new Response("Not Found", { status: 404, statusText: "Not Found" }));
+        }
+        const mockHtml = `
+          <html>
+            <script>var ytInitialData = ${JSON.stringify({
+              frameworkUpdates: {
+                entityBatchUpdate: {
+                  mutations: [
+                    {
+                      payload: {
+                        macroMarkersListEntity: {
+                          markersList: {
+                            markers: [
+                              { startMillis: "0", durationMillis: "5000", intensityScoreNormalized: 0.5 },
+                            ],
+                            markersDecoration: { timedMarkerDecorations: [] },
+                          },
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            })};</script>
+          </html>
+        `;
+        return Promise.resolve(new Response(mockHtml, { status: 200, statusText: "OK" }));
+      });
+
+      const results = await getMostReplayedBatch(
+        ["dQw4w9WgXcQ", "abc123XYZ_-", "xyz789ABC_-"],
+        { fetch: mockFetch }
+      );
+
+      expect(results).toHaveLength(3);
+      expect(results[0]?.data).not.toBeNull();
+      expect(results[1]?.error).toBeDefined();
+      expect(results[1]?.error?.code).toBe(MostReplayedErrorCode.FETCH_FAILED);
+      expect(results[2]?.data).not.toBeNull();
+    });
+
+    it("should respect concurrency limit", async () => {
+      let maxConcurrent = 0;
+      let currentConcurrent = 0;
+
+      const mockFetch = createMockFetch(async () => {
+        currentConcurrent++;
+        maxConcurrent = Math.max(maxConcurrent, currentConcurrent);
+        await new Promise(resolve => setTimeout(resolve, 50));
+        currentConcurrent--;
+        const mockHtml = `
+          <html>
+            <script>var ytInitialData = ${JSON.stringify({
+              frameworkUpdates: { entityBatchUpdate: { mutations: [] } },
+            })};</script>
+          </html>
+        `;
+        return new Response(mockHtml, { status: 200, statusText: "OK" });
+      });
+
+      await getMostReplayedBatch(
+        ["dQw4w9WgXcQ", "abc123XYZ_-", "xyz789ABC_-", "def456GHI_-", "jkl012MNO_-"],
+        { fetch: mockFetch, concurrency: 2 }
+      );
+
+      expect(maxConcurrent).toBeLessThanOrEqual(2);
+    });
+
+    it("should return results in the same order as input", async () => {
+      const mockHtml = `
+        <html>
+          <script>var ytInitialData = ${JSON.stringify({
+            frameworkUpdates: { entityBatchUpdate: { mutations: [] } },
+          })};</script>
+        </html>
+      `;
+
+      const mockFetch = createMockFetch(() =>
+        Promise.resolve(new Response(mockHtml, { status: 200, statusText: "OK" }))
+      );
+
+      const videoIds = ["dQw4w9WgXcQ", "abc123XYZ_-", "xyz789ABC_-"];
+      const results = await getMostReplayedBatch(videoIds, { fetch: mockFetch });
+
+      expect(results[0]?.videoId).toBe("dQw4w9WgXcQ");
+      expect(results[1]?.videoId).toBe("abc123XYZ_-");
+      expect(results[2]?.videoId).toBe("xyz789ABC_-");
+    });
+
+    it("should handle empty input array", async () => {
+      const mockFetch = createMockFetch(() =>
+        Promise.resolve(new Response("", { status: 200, statusText: "OK" }))
+      );
+
+      const results = await getMostReplayedBatch([], { fetch: mockFetch });
+      expect(results).toHaveLength(0);
     });
   });
 });

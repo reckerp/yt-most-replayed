@@ -22,9 +22,11 @@
  */
 
 // Re-export main API
-export { extractVideoId, getMostReplayed, isValidVideoId } from "./client.js";
+export { extractVideoId, getMostReplayed, getMostReplayedBatch, isValidVideoId } from "./client.js";
 // Re-export types
 export type {
+  BatchFetchOptions,
+  BatchResult,
   FetchOptions,
   HeatmapMarker,
   MostReplayedData,

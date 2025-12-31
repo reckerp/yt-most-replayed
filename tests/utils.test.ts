@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { MostReplayedData } from "../src/types.js";
+import type { HeatmapMarker, MostReplayedData } from "../src/types.js";
 import {
   filterByIntensity,
   formatTime,
@@ -9,10 +9,14 @@ import {
   getTopSegments,
 } from "../src/utils.js";
 
-// Helper to create test data
+function createMarker(startMillis: number, intensityScoreNormalized: number): HeatmapMarker {
+  return { startMillis, durationMillis: 5000, intensityScoreNormalized };
+}
+
 function createTestData(
-  markers: Array<{ startMillis: number; intensityScoreNormalized: number }>
+  markerInputs: Array<{ startMillis: number; intensityScoreNormalized: number }>
 ): MostReplayedData {
+  const markers = markerInputs.map((m) => createMarker(m.startMillis, m.intensityScoreNormalized));
   return {
     markers,
     timedMarkerDecorations: null,
@@ -136,23 +140,11 @@ describe("utils", () => {
         { startMillis: 10000, intensityScoreNormalized: 0.7 },
       ]);
 
-      expect(getSegmentAtTime(data, 0)).toEqual({ startMillis: 0, intensityScoreNormalized: 0.3 });
-      expect(getSegmentAtTime(data, 2500)).toEqual({
-        startMillis: 0,
-        intensityScoreNormalized: 0.3,
-      });
-      expect(getSegmentAtTime(data, 5000)).toEqual({
-        startMillis: 5000,
-        intensityScoreNormalized: 0.5,
-      });
-      expect(getSegmentAtTime(data, 7500)).toEqual({
-        startMillis: 5000,
-        intensityScoreNormalized: 0.5,
-      });
-      expect(getSegmentAtTime(data, 15000)).toEqual({
-        startMillis: 10000,
-        intensityScoreNormalized: 0.7,
-      });
+      expect(getSegmentAtTime(data, 0)).toEqual(createMarker(0, 0.3));
+      expect(getSegmentAtTime(data, 2500)).toEqual(createMarker(0, 0.3));
+      expect(getSegmentAtTime(data, 5000)).toEqual(createMarker(5000, 0.5));
+      expect(getSegmentAtTime(data, 7500)).toEqual(createMarker(5000, 0.5));
+      expect(getSegmentAtTime(data, 15000)).toEqual(createMarker(10000, 0.7));
     });
 
     it("should return null if time is before first segment", () => {
@@ -174,19 +166,13 @@ describe("utils", () => {
         { startMillis: 5000, intensityScoreNormalized: 0.5 },
       ]);
 
-      expect(getSegmentAtTime(data, 4999)).toEqual({
-        startMillis: 0,
-        intensityScoreNormalized: 0.3,
-      });
-      expect(getSegmentAtTime(data, 5000)).toEqual({
-        startMillis: 5000,
-        intensityScoreNormalized: 0.5,
-      });
+      expect(getSegmentAtTime(data, 4999)).toEqual(createMarker(0, 0.3));
+      expect(getSegmentAtTime(data, 5000)).toEqual(createMarker(5000, 0.5));
     });
   });
 
   describe("getSegmentDuration", () => {
-    it("should calculate duration from first two markers", () => {
+    it("should return durationMillis from first marker", () => {
       const data = createTestData([
         { startMillis: 0, intensityScoreNormalized: 0.5 },
         { startMillis: 5000, intensityScoreNormalized: 0.5 },
@@ -196,25 +182,15 @@ describe("utils", () => {
       expect(getSegmentDuration(data)).toBe(5000);
     });
 
-    it("should return 0 for single marker", () => {
+    it("should return durationMillis for single marker", () => {
       const data = createTestData([{ startMillis: 0, intensityScoreNormalized: 0.5 }]);
 
-      expect(getSegmentDuration(data)).toBe(0);
+      expect(getSegmentDuration(data)).toBe(5000);
     });
 
     it("should return 0 for empty markers", () => {
       const data = createTestData([]);
       expect(getSegmentDuration(data)).toBe(0);
-    });
-
-    it("should handle irregular segment spacing", () => {
-      const data = createTestData([
-        { startMillis: 0, intensityScoreNormalized: 0.5 },
-        { startMillis: 3000, intensityScoreNormalized: 0.5 },
-        { startMillis: 8000, intensityScoreNormalized: 0.5 },
-      ]);
-
-      expect(getSegmentDuration(data)).toBe(3000);
     });
   });
 

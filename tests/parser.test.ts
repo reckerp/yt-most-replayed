@@ -9,7 +9,12 @@ import {
   transformMarkers,
   transformTimedMarkerDecorations,
 } from "../src/parser.js";
+import type { HeatmapMarker } from "../src/types.js";
 import { MostReplayedError, MostReplayedErrorCode } from "../src/types.js";
+
+function marker(startMillis: number, intensity: number, duration = 5000): HeatmapMarker {
+  return { startMillis, durationMillis: duration, intensityScoreNormalized: intensity };
+}
 
 describe("parser", () => {
   describe("extractInitialDataJson", () => {
@@ -193,32 +198,33 @@ describe("parser", () => {
   });
 
   describe("transformMarkers", () => {
-    it("should transform raw markers into typed markers", () => {
+    it("should transform raw markers into typed markers with durationMillis", () => {
       const rawMarkers = [
         { startMillis: "1000", durationMillis: "5000", intensityScoreNormalized: 0.8 },
         { startMillis: "6000", durationMillis: "5000", intensityScoreNormalized: 0.3 },
       ];
       const result = transformMarkers(rawMarkers);
       expect(result).toEqual([
-        { startMillis: 1000, intensityScoreNormalized: 0.8 },
-        { startMillis: 6000, intensityScoreNormalized: 0.3 },
+        { startMillis: 1000, durationMillis: 5000, intensityScoreNormalized: 0.8 },
+        { startMillis: 6000, durationMillis: 5000, intensityScoreNormalized: 0.3 },
       ]);
     });
 
     it("should filter out markers without startMillis", () => {
       const rawMarkers = [
-        { startMillis: "1000", intensityScoreNormalized: 0.5 },
-        { intensityScoreNormalized: 0.3 }, // Missing startMillis
-        { startMillis: "2000", intensityScoreNormalized: 0.7 },
+        { startMillis: "1000", durationMillis: "5000", intensityScoreNormalized: 0.5 },
+        { intensityScoreNormalized: 0.3 },
+        { startMillis: "2000", durationMillis: "5000", intensityScoreNormalized: 0.7 },
       ];
       const result = transformMarkers(rawMarkers);
       expect(result).toHaveLength(2);
     });
 
-    it("should default intensityScoreNormalized to 0 when missing", () => {
+    it("should default intensityScoreNormalized to 0 and durationMillis to 0 when missing", () => {
       const rawMarkers = [{ startMillis: "1000" }];
       const result = transformMarkers(rawMarkers);
       expect(result[0]?.intensityScoreNormalized).toBe(0);
+      expect(result[0]?.durationMillis).toBe(0);
     });
 
     it("should sort markers by startMillis", () => {
@@ -283,13 +289,9 @@ describe("parser", () => {
 
   describe("findPeakSegment", () => {
     it("should find the marker with highest intensity", () => {
-      const markers = [
-        { startMillis: 0, intensityScoreNormalized: 0.3 },
-        { startMillis: 1000, intensityScoreNormalized: 0.9 },
-        { startMillis: 2000, intensityScoreNormalized: 0.5 },
-      ];
+      const markers = [marker(0, 0.3), marker(1000, 0.9), marker(2000, 0.5)];
       const result = findPeakSegment(markers);
-      expect(result).toEqual({ startMillis: 1000, intensityScoreNormalized: 0.9 });
+      expect(result).toEqual(marker(1000, 0.9));
     });
 
     it("should return null for empty array", () => {
@@ -298,28 +300,21 @@ describe("parser", () => {
     });
 
     it("should return first peak when multiple have same intensity", () => {
-      const markers = [
-        { startMillis: 0, intensityScoreNormalized: 1.0 },
-        { startMillis: 1000, intensityScoreNormalized: 1.0 },
-      ];
+      const markers = [marker(0, 1.0), marker(1000, 1.0)];
       const result = findPeakSegment(markers);
       expect(result?.startMillis).toBe(0);
     });
 
     it("should handle single marker", () => {
-      const markers = [{ startMillis: 5000, intensityScoreNormalized: 0.5 }];
+      const markers = [marker(5000, 0.5)];
       const result = findPeakSegment(markers);
-      expect(result).toEqual({ startMillis: 5000, intensityScoreNormalized: 0.5 });
+      expect(result).toEqual(marker(5000, 0.5));
     });
   });
 
   describe("calculateAverageIntensity", () => {
     it("should calculate average intensity correctly", () => {
-      const markers = [
-        { startMillis: 0, intensityScoreNormalized: 0.2 },
-        { startMillis: 1000, intensityScoreNormalized: 0.4 },
-        { startMillis: 2000, intensityScoreNormalized: 0.6 },
-      ];
+      const markers = [marker(0, 0.2), marker(1000, 0.4), marker(2000, 0.6)];
       const result = calculateAverageIntensity(markers);
       expect(result).toBeCloseTo(0.4, 10);
     });
@@ -330,16 +325,13 @@ describe("parser", () => {
     });
 
     it("should handle single marker", () => {
-      const markers = [{ startMillis: 0, intensityScoreNormalized: 0.75 }];
+      const markers = [marker(0, 0.75)];
       const result = calculateAverageIntensity(markers);
       expect(result).toBe(0.75);
     });
 
     it("should handle all zero intensities", () => {
-      const markers = [
-        { startMillis: 0, intensityScoreNormalized: 0 },
-        { startMillis: 1000, intensityScoreNormalized: 0 },
-      ];
+      const markers = [marker(0, 0), marker(1000, 0)];
       const result = calculateAverageIntensity(markers);
       expect(result).toBe(0);
     });
@@ -347,11 +339,7 @@ describe("parser", () => {
 
   describe("estimateVideoDuration", () => {
     it("should estimate duration from last marker plus segment duration", () => {
-      const markers = [
-        { startMillis: 0, intensityScoreNormalized: 0.5 },
-        { startMillis: 5000, intensityScoreNormalized: 0.5 },
-        { startMillis: 10000, intensityScoreNormalized: 0.5 },
-      ];
+      const markers = [marker(0, 0.5), marker(5000, 0.5), marker(10000, 0.5)];
       const rawMarkers = [
         { startMillis: "0", durationMillis: "5000" },
         { startMillis: "5000", durationMillis: "5000" },
@@ -367,7 +355,7 @@ describe("parser", () => {
     });
 
     it("should handle missing durationMillis in raw markers", () => {
-      const markers = [{ startMillis: 10000, intensityScoreNormalized: 0.5 }];
+      const markers = [marker(10000, 0.5)];
       const rawMarkers = [{ startMillis: "10000" }];
       const result = estimateVideoDuration(markers, rawMarkers);
       expect(result).toBe(10000);

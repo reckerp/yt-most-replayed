@@ -61,13 +61,10 @@ export function getSegmentAtTime(data: MostReplayedData, timeMillis: number): He
  * @returns Approximate segment duration in milliseconds
  */
 export function getSegmentDuration(data: MostReplayedData): number {
-  if (data.markers.length < 2) {
+  if (data.markers.length === 0) {
     return 0;
   }
-
-  const first = data.markers[0]!;
-  const second = data.markers[1]!;
-  return second.startMillis - first.startMillis;
+  return data.markers[0]!.durationMillis;
 }
 
 /**

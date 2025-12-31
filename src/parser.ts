@@ -118,6 +118,7 @@ export function transformMarkers(rawMarkers: RawMarker[]): HeatmapMarker[] {
     )
     .map((marker) => ({
       startMillis: parseInt(marker.startMillis, 10),
+      durationMillis: marker.durationMillis ? parseInt(marker.durationMillis, 10) : 0,
       intensityScoreNormalized: marker.intensityScoreNormalized ?? 0,
     }))
     .sort((a, b) => a.startMillis - b.startMillis);
