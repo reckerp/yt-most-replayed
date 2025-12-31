@@ -1,11 +1,11 @@
 /**
- * yt-most-replayed
+ * @reckerp/yt-most-replayed
  *
  * A TypeScript library to fetch YouTube's "Most Replayed" heatmap data.
  *
  * @example
  * ```typescript
- * import { getMostReplayed } from "yt-most-replayed";
+ * import { getMostReplayed } from "@reckerp/yt-most-replayed";
  *
  * const data = await getMostReplayed("dQw4w9WgXcQ");
  *

@@ -1,19 +1,19 @@
-# yt-most-replayed
+# @reckerp/yt-most-replayed
 
 A TypeScript library to fetch YouTube's "Most Replayed" heatmap data.
 
 ## Installation
 
 ```bash
-bun add yt-most-replayed
+bun add @reckerp/yt-most-replayed
 ```
 
 ```bash
-npm install yt-most-replayed
+npm install @reckerp/yt-most-replayed
 ```
 
 ```bash
-pnpm add yt-most-replayed
+pnpm add @reckerp/yt-most-replayed
 ```
 
 ## Usage
@@ -21,7 +21,7 @@ pnpm add yt-most-replayed
 ### Basic Example
 
 ```typescript
-import { getMostReplayed, formatTime } from "yt-most-replayed";
+import { getMostReplayed, formatTime } from "@reckerp/yt-most-replayed";
 
 const data = await getMostReplayed("dQw4w9WgXcQ");
 
@@ -37,7 +37,7 @@ if (data) {
 ### Using URLs
 
 ```typescript
-import { getMostReplayed } from "yt-most-replayed";
+import { getMostReplayed } from "@reckerp/yt-most-replayed";
 
 // All these formats work:
 await getMostReplayed("dQw4w9WgXcQ");
@@ -49,7 +49,12 @@ await getMostReplayed("https://www.youtube.com/shorts/VIDEO_ID");
 ### Finding Top Moments
 
 ```typescript
-import { getMostReplayed, getTopSegments, formatTime, generateTimestampUrl } from "yt-most-replayed";
+import {
+  getMostReplayed,
+  getTopSegments,
+  formatTime,
+  generateTimestampUrl,
+} from "@reckerp/yt-most-replayed";
 
 const data = await getMostReplayed("dQw4w9WgXcQ");
 
@@ -67,7 +72,7 @@ if (data) {
 ### Filtering by Intensity
 
 ```typescript
-import { getMostReplayed, filterByIntensity } from "yt-most-replayed";
+import { getMostReplayed, filterByIntensity } from "@reckerp/yt-most-replayed";
 
 const data = await getMostReplayed("dQw4w9WgXcQ");
 
@@ -81,7 +86,11 @@ if (data) {
 ### Error Handling
 
 ```typescript
-import { getMostReplayed, MostReplayedError, MostReplayedErrorCode } from "yt-most-replayed";
+import {
+  getMostReplayed,
+  MostReplayedError,
+  MostReplayedErrorCode,
+} from "@reckerp/yt-most-replayed";
 
 try {
   const data = await getMostReplayed("invalid-id");
@@ -108,7 +117,7 @@ try {
 ### Custom Fetch Options
 
 ```typescript
-import { getMostReplayed } from "yt-most-replayed";
+import { getMostReplayed } from "@reckerp/yt-most-replayed";
 
 const data = await getMostReplayed("dQw4w9WgXcQ", {
   timeout: 15000, // 15 second timeout
