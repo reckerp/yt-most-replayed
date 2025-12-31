@@ -1,6 +1,6 @@
 {
   "name": "@reckerp/yt-most-replayed",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A TypeScript library to fetch YouTube's 'Most Replayed' heatmap data",
   "type": "module",
   "main": "./dist/index.mjs",
