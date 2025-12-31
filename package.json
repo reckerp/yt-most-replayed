@@ -1,0 +1,61 @@
+{
+  "name": "yt-most-replayed",
+  "version": "1.0.0",
+  "description": "A TypeScript library to fetch YouTube's 'Most Replayed' heatmap data",
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": {
+        "import": "./dist/index.d.mts",
+        "require": "./dist/index.d.cts"
+      },
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "check": "biome check --write .",
+    "prepublishOnly": "bun run typecheck && bun run build"
+  },
+  "keywords": [
+    "youtube",
+    "most-replayed",
+    "heatmap",
+    "video",
+    "analytics"
+  ],
+  "author": "Paul Recker (reckerp)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/reckerp/yt-most-replayed.git"
+  },
+  "bugs": {
+    "url": "https://github.com/reckerp/yt-most-replayed/issues"
+  },
+  "homepage": "https://github.com/reckerp/yt-most-replayed#readme",
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.10",
+    "@types/bun": "latest",
+    "@types/node": "^20.10.0",
+    "tsdown": "^0.18.4",
+    "typescript": "^5.3.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
